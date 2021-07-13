@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+<meta charset="UTF-8" />
+<title>smartSweepers.js</title>
+<link rel='prefetch' href='//fonts.googleapis.com/css?family=Lato:400,700,400italic' as='style' type='text/css' />
+<link rel="stylesheet" href="/css/bootstrap.css" />
+<!-- https://developer.mozilla.org/en-US/docs/Web/HTML/Link_types/preload -->
+<link rel="prefetch" href="/animate.html" as="object" type="text/html" />
+<style>
+h1, h5, #main {
+  margin-left: auto;
+  margin-right: auto;
+  width: 850px;
+}
+
+#teaser, #footer {
+  z-index: 2;
+  margin-left: auto;
+  margin-right: auto;
+  width: 540px;
+  position: relative;
+}
+
+h1, h5 {
+  text-align: center;
+}
+
+#stats-table {
+  table-layout: fixed;
+  float: right;
+  width: 350px;
+}
+
+#stats-table th, #stats-table td {
+  width: 33%;
+  text-align: center;
+}
+
+/* animations DISABLED */
+#main {
+  opacity: 1;
+  height: 490px;
+  z-index: 1;
+  position: relative;
+}
+
+.noIn {
+  font-family: monospace;
+  text-align: right;
+  width: 75px;
+}
+
+input:disabled {
+  color: #800;
+  background-color: #CCC;
+}
+</style>
+<script src="/Brain/Brain.js"></script>
+<script src="/Experience/Experience.js"></script>
+<script src="/SmartSweepers/SmartSweepers.js"></script>
+</head>
+
+<body>
+<h1>smartSweepers.js</h1>
+<h5>Your computer can think... &amp; even reason</h5>
+
+<div id="main" class="well">
+  <canvas id="game-canvas" width="400" height="400"></canvas>
+  <object id="fast-animation" type="text/html" style="display:none;"></object>
+
+  <table id="stats-table">
+    <thead>
+      <tr>
+        <th>Generation</th>
+        <th>Grabbed</th>
+        <th>Average</th>
+      </tr>
+    </thead>
+  </table><br />
+  <span>
+    <label for='nSweeper'>Sweepers</label>
+    <input type='number' class='noIn' id='tagSweeper' value='4' disabled />&nbsp;&nbsp;&nbsp;
+    <label for='nElite'>Elites</label>
+    <input type='number' class='noIn' id='tagElite' value='2' disabled />&nbsp;&nbsp;&nbsp;
+    <label for='nMine'>Mines</label>
+    <input type='number' class='noIn' id='tagMine' value='60' disabled /><br />
+    <input type="checkbox" id="step-fast" />
+    <label for="step-fast">Fast</label>&nbsp;&nbsp;
+    <input type="checkbox" id="view-paths" />
+    <label for="view-paths">View Paths</label>
+  </span>
+</div>
+</body>
+<script>
+var did = item => document.getElementById(item);
+var canvas = did('game-canvas');
+var ctx = canvas.getContext('2d');
+
+var stepFast = did('step-fast');
+var viewPaths = did('view-paths');
+var fastAnimation = did('fast-animation');
+var reqAnim;
+var trCount = 0;
+
+var controller = new SmartSweepers.Controller(ctx, {
+  framesPerSecond: 60,
+  maxTurnRate: 0.3,
+  maxSpeed: 10,
+  sweeperScale: 5,
+  numMines: did('tagMine').value,
+  numSweepers: did('tagSweeper').value,
+  numTicks: 2000,
+  mineScale: 2,
+  crossoverRate: 0.7,
+  mutationRate: 0.1,
+  maxPerturbation: 0.3,
+  numElite: did('tagElite').value,
+  numCopiesElite: 1
+});
+
+var generation = controller.generations;
+
+fastAnimation.style.position = "absolute";
+fastAnimation.style.left = canvas.offsetLeft.toString() + "px";
+fastAnimation.style.top  = canvas.offsetTop.toString()  + "px";
+fastAnimation.style.width  = canvas.clientWidth  + "px";
+fastAnimation.style.height = canvas.clientHeight + "px";
+
+stepFast.onchange = function () {
+  controller.setFastRender(this.checked);
+
+  if (this.checked) {
+    canvas.style.visibility = 'hidden';
+    fastAnimation.style.display = '';
+    fastAnimation.setAttribute('data', '/animate.html');
+
+  } else {
+    canvas.style.visibility = '';
+    fastAnimation.style.display = 'none';
+    fastAnimation.removeAttribute('data');
+  }
+};
+stepFast.click();
+
+// controller.setViewPaths(viewPaths.checked);
+
+viewPaths.onchange = function () {
+  controller.setViewPaths(this.checked);
+};
+
+function animate() {
+  controller.update();
+  controller.render();
+
+  if (generation != controller.generations) {
+    generation = controller.generations;
+    plotStats();
+  }
+
+  setTimeout(function () {
+    if (controller.fastRender) {
+      if (reqAnim != null) cancelAnimationFrame(reqAnim);
+      quick();
+    } else {
+      reqAnim = requestAnimationFrame(animate);
+    }
+  }, 0);
+}
+
+function quick() {
+  controller.update();
+
+  if (generation != controller.generations) {
+    generation = controller.generations;
+    plotStats();
+  }
+
+  setTimeout(function () {
+    if (controller.fastRender) {
+      if (reqAnim != null) cancelAnimationFrame(reqAnim);
+      quick();
+    } else {
+      animate();
+    }
+  }, 0);
+}
+
+// controller.setExperience(SmartSweepers.experiencedAdult);
+animate();
+
+function plotStats() {
+  if (controller.generations < 1) return;
+
+  var generationEl = document.createElement('td');
+  var bestFitnessEl = document.createElement('td');
+  var avgFitnessEl = document.createElement('td');
+  var rowEl = document.createElement('tr');
+  rowEl.setAttribute("id", "tr_" + controller.generations.toString());
+
+  var tableEl = did('stats-table');
+
+  generationEl.innerHTML = controller.generations.toString();
+  bestFitnessEl.innerHTML = controller.wisdom.getBestFitness();
+  avgFitnessEl.innerHTML = controller.wisdom.getAvgFitness().toFixed(2);
+
+  rowEl.appendChild(generationEl);
+  rowEl.appendChild(bestFitnessEl);
+  rowEl.appendChild(avgFitnessEl);
+
+  if (controller.generations > 18) {
+    trCount++;
+    did("tr_" + trCount.toString()).remove();
+  }
+  tableEl.appendChild(rowEl);
+}
+</script>
+</html>
